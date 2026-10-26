@@ -11,6 +11,7 @@ You will need the following installed on your system:
 - mise
 - Node.js (via mise)
 - pnpm (via mise)
+- FFmpeg 8+ with ffprobe (via mise, from conda-forge). Only needed by `pnpm album:prepare` to transcode videos. Check it with `mise exec -- ffmpeg -version`.
 - Docker
 
 ### Setup

@@ -1,0 +1,4 @@
+[tools]
+pnpm = "12"
+node = "22"
+"conda:ffmpeg" = "9"

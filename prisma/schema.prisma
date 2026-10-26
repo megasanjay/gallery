@@ -1,0 +1,85 @@
+generator client {
+    provider        = "prisma-client"
+    previewFeatures = ["strictUndefinedChecks"]
+    output          = "../shared/generated/"
+    engineType      = "client"
+}
+
+generator kysely {
+    provider = "prisma-kysely"
+
+    output   = "../shared/generated/"
+    fileName = "kysely.ts"
+}
+
+datasource db {
+    provider = "postgresql"
+}
+
+model User {
+    id String @id @default(cuid(2))
+
+    givenName  String @default("") // first name
+    familyName String @default("") // last name
+
+    emailAddress String @unique
+    password     String
+
+    created DateTime @default(now())
+    updated DateTime @updatedAt
+
+    @@index([emailAddress])
+}
+
+model Album {
+    id String @id @default(cuid(2))
+
+    shortId  String  @unique @default(nanoid(10)) // generated
+    customId String? @unique // optional human friendly id (e.g. japan-2026)
+
+    title       String
+    description String  @default("")
+    dateRange   String? // free text shown with the album, e.g. "Apr 12 – 14, 2024"
+
+    isPublic Boolean @default(false) // public albums can be viewed without signing in
+
+    media Media[]
+
+    created DateTime @default(now())
+    updated DateTime @updatedAt
+}
+
+enum MediaKind {
+    IMAGE
+    VIDEO
+}
+
+// Photos and video clips in an album
+model Media {
+    id String @id @default(cuid(2))
+
+    albumId String
+    album   Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+    kind MediaKind @default(IMAGE)
+
+    position Int // order within the album
+
+    // key in the bunny.net storage zone (e.g. <folder>/<id>.jpg or <folder>/<id>.mp4).
+    // Images and video posters have avif/webp copies alongside (see shared/utils/imageVariants.ts)
+    path             String @unique
+    originalFileName String
+
+    mimeType String
+    size     Int // bytes
+    width    Int?
+    height   Int?
+    duration Float? // seconds, videos only
+
+    caption String @default("")
+
+    created DateTime @default(now())
+    updated DateTime @updatedAt
+
+    @@index([albumId, position])
+}

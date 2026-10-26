@@ -1,0 +1,338 @@
+<script setup lang="ts">
+import { VueDraggable } from "vue-draggable-plus";
+
+definePageMeta({
+  middleware: ["auth"],
+});
+
+const route = useRoute();
+const toast = useToast();
+
+// Can be the album's full id, short id or custom id
+const albumId = route.params.id as string;
+
+const { data: album, error } = await useFetch(`/api/albums/${albumId}`);
+
+if (error.value) {
+  throw createError({
+    statusCode: error.value.statusCode ?? 500,
+    statusMessage: error.value.data?.statusMessage,
+    fatal: true,
+  });
+}
+
+// Short and custom id urls redirect to the full id url
+if (album.value && album.value.id !== albumId) {
+  await navigateTo(`/app/albums/${album.value.id}`, { replace: true });
+}
+
+useSeoMeta({
+  title: () => album.value?.title ?? "Album",
+});
+
+type AlbumMedia = NonNullable<typeof album.value>["media"][number];
+
+// Local copy of the media that the drag and drop list mutates
+const media = ref<AlbumMedia[]>([...(album.value?.media ?? [])]);
+const savedOrder = ref(media.value.map((item) => item.id));
+
+const isDirty = computed(
+  () => media.value.map((item) => item.id).join() !== savedOrder.value.join(),
+);
+
+const saving = ref(false);
+
+async function saveOrder() {
+  saving.value = true;
+
+  const mediaIds = media.value.map((item) => item.id);
+
+  await $fetch(`/api/albums/${album.value!.id}/order`, {
+    method: "PUT",
+    body: { mediaIds },
+  })
+    .then(() => {
+      savedOrder.value = mediaIds;
+
+      toast.add({
+        title: "Order saved",
+        icon: "material-symbols:check-circle",
+        color: "success",
+      });
+    })
+    .catch((error) => {
+      toast.add({
+        title: "Error saving order",
+        description: error.data?.statusMessage ?? "Request failed",
+        icon: "material-symbols:error",
+        color: "error",
+      });
+    })
+    .finally(() => {
+      saving.value = false;
+    });
+}
+
+function resetOrder() {
+  const byId = new Map(media.value.map((item) => [item.id, item]));
+
+  media.value = savedOrder.value.map((id) => byId.get(id)!);
+}
+
+const previewIndex = ref<number | null>(null);
+
+const updatingVisibility = ref(false);
+
+async function setPublic(isPublic: boolean) {
+  updatingVisibility.value = true;
+
+  await $fetch(`/api/albums/${album.value!.id}`, {
+    method: "PATCH",
+    body: { isPublic },
+  })
+    .then(() => {
+      album.value!.isPublic = isPublic;
+
+      toast.add({
+        title: isPublic ? "Album is now public" : "Album is now private",
+        icon: "material-symbols:check-circle",
+        color: "success",
+      });
+    })
+    .catch((error) => {
+      toast.add({
+        title: "Error updating album",
+        description: error.data?.statusMessage ?? "Request failed",
+        icon: "material-symbols:error",
+        color: "error",
+      });
+    })
+    .finally(() => {
+      updatingVisibility.value = false;
+    });
+}
+
+const details = reactive({
+  customId: album.value?.customId ?? "",
+  dateRange: album.value?.dateRange ?? "",
+});
+const savingDetails = ref(false);
+
+const detailsChanged = computed(
+  () =>
+    details.customId.trim() !== (album.value?.customId ?? "") ||
+    details.dateRange.trim() !== (album.value?.dateRange ?? ""),
+);
+
+async function saveDetails() {
+  savingDetails.value = true;
+
+  await $fetch(`/api/albums/${album.value!.id}`, {
+    method: "PATCH",
+    body: { customId: details.customId, dateRange: details.dateRange },
+  })
+    .then((updated) => {
+      album.value!.customId = updated.customId;
+      album.value!.dateRange = updated.dateRange;
+      details.customId = updated.customId ?? "";
+      details.dateRange = updated.dateRange ?? "";
+
+      toast.add({
+        title: "Album details saved",
+        icon: "material-symbols:check-circle",
+        color: "success",
+      });
+    })
+    .catch((error) => {
+      toast.add({
+        title: "Error saving album details",
+        description: error.data?.statusMessage ?? "Request failed",
+        icon: "material-symbols:error",
+        color: "error",
+      });
+    })
+    .finally(() => {
+      savingDetails.value = false;
+    });
+}
+
+// Public links by short id and custom id. Both redirect to the full id url.
+const { origin } = useRequestURL();
+
+const publicLinks = computed(() =>
+  [
+    { label: "Short id link", id: album.value?.shortId },
+    { label: "Custom id link", id: album.value?.customId },
+  ]
+    .filter((link) => link.id)
+    .map((link) => ({ label: link.label, url: `${origin}/albums/${link.id}` })),
+);
+
+const copyLink = useCopyLink();
+
+onBeforeRouteLeave(() => {
+  if (isDirty.value) {
+    return window.confirm("You have unsaved changes to the order. Leave?");
+  }
+});
+</script>
+
+<template>
+  <div
+    v-if="album"
+    class="mx-auto flex w-full max-w-screen-xl flex-col gap-6 px-6 pb-12"
+  >
+    <UPageHeader :title="album.title" :description="album.description">
+      <template #headline>
+        <UBreadcrumb
+          :items="[
+            { label: 'Albums', to: '/app/albums' },
+            { label: album.customId ?? album.shortId },
+          ]"
+        />
+      </template>
+
+      <template #links>
+        <USwitch
+          :model-value="album.isPublic"
+          :loading="updatingVisibility"
+          :disabled="updatingVisibility"
+          label="Public"
+          @update:model-value="setPublic"
+        />
+
+        <UButton
+          v-if="album.isPublic"
+          :to="`/albums/${album.id}`"
+          target="_blank"
+          icon="i-lucide-external-link"
+          color="neutral"
+          variant="ghost"
+        >
+          View public page
+        </UButton>
+
+        <UButton
+          color="neutral"
+          variant="outline"
+          :disabled="!isDirty || saving"
+          @click="resetOrder"
+        >
+          Reset
+        </UButton>
+
+        <UButton
+          icon="material-symbols:save-outline"
+          :disabled="!isDirty"
+          :loading="saving"
+          @click="saveOrder"
+        >
+          Save order
+        </UButton>
+      </template>
+    </UPageHeader>
+
+    <div class="grid gap-6 lg:grid-cols-2">
+      <form class="flex flex-col gap-4" @submit.prevent="saveDetails">
+        <h2 class="font-semibold">Details</h2>
+
+        <UFormField label="Custom id" hint="Optional">
+          <UInput v-model="details.customId" placeholder="japan-2026" />
+        </UFormField>
+
+        <UFormField label="Date" hint="Optional">
+          <UInput v-model="details.dateRange" placeholder="Apr 12 – 14, 2024" />
+        </UFormField>
+
+        <div>
+          <UButton
+            type="submit"
+            color="neutral"
+            variant="outline"
+            :disabled="!detailsChanged"
+            :loading="savingDetails"
+          >
+            Save details
+          </UButton>
+        </div>
+      </form>
+
+      <div class="flex flex-col gap-4">
+        <div>
+          <h2 class="font-semibold">Links</h2>
+
+          <p v-if="!album.isPublic" class="text-muted text-sm">
+            These links only work once the album is public.
+          </p>
+        </div>
+
+        <UFormField
+          v-for="link in publicLinks"
+          :key="link.url"
+          :label="link.label"
+        >
+          <UInput :model-value="link.url" readonly>
+            <template #trailing>
+              <UButton
+                icon="i-lucide-copy"
+                color="neutral"
+                variant="link"
+                size="sm"
+                :aria-label="`Copy ${link.label.toLowerCase()}`"
+                @click="copyLink(link.url)"
+              />
+            </template>
+          </UInput>
+        </UFormField>
+      </div>
+    </div>
+
+    <p v-if="!media.length" class="text-muted">
+      No photos or videos yet. Add some with
+      <code
+        >pnpm album:import &lt;manifest&gt; --album
+        {{ album.customId ?? album.shortId }}</code
+      >.
+    </p>
+
+    <p v-else class="text-muted text-sm">Drag to reorder. Click to preview.</p>
+
+    <VueDraggable
+      v-model="media"
+      :animation="150"
+      ghost-class="opacity-30"
+      class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+    >
+      <button
+        v-for="(item, index) in media"
+        :key="item.id"
+        type="button"
+        class="bg-elevated group relative aspect-square cursor-grab overflow-hidden rounded-md active:cursor-grabbing"
+        @click="previewIndex = index"
+      >
+        <!-- Videos show their poster thumbnail -->
+        <AlbumImagePicture
+          :path="item.path"
+          thumbnail
+          :alt="item.caption || item.originalFileName"
+          loading="lazy"
+          draggable="false"
+          class="h-full w-full object-cover"
+        />
+
+        <span
+          class="absolute top-1.5 left-1.5 rounded bg-black/60 px-1.5 text-xs text-white"
+        >
+          {{ index + 1 }}
+        </span>
+
+        <AlbumVideoBadge
+          v-if="item.kind === 'VIDEO'"
+          :duration="item.duration"
+        />
+      </button>
+    </VueDraggable>
+
+    <AlbumMediaLightbox v-model:index="previewIndex" :media="media" />
+  </div>
+</template>

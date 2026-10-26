@@ -2,13 +2,13 @@
 import { z } from "zod";
 import type { FormSubmitEvent } from "#ui/types";
 
-const { loggedIn } = useUserSession();
+const { loggedIn, user } = useUserSession();
 const route = useRoute();
 
 const routeQueryParams = route.query;
 
 if (loggedIn.value) {
-  await navigateTo("/app/albums");
+  await navigateTo(user.value?.isAdmin ? "/app/albums" : "/");
 }
 
 definePageMeta({
@@ -49,7 +49,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     body,
     method: "POST",
   })
-    .then(() => {
+    .then(({ isAdmin }) => {
       toast.add({
         title: "Login successful",
         description: "You can now access your account",
@@ -69,7 +69,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
 
         window.location.href = redirect;
       } else {
-        window.location.href = "/app/albums";
+        window.location.href = isAdmin ? "/app/albums" : "/";
       }
     })
     .catch((error) => {

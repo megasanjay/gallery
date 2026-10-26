@@ -17,7 +17,7 @@ const albumSchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event);
+  await requireAdmin(event);
 
   const body = await readValidatedBody(event, (b) => albumSchema.safeParse(b));
 

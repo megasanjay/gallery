@@ -2,7 +2,7 @@
 import { VueDraggable } from "vue-draggable-plus";
 
 definePageMeta({
-  middleware: ["auth"],
+  middleware: ["admin"],
 });
 
 const route = useRoute();
@@ -170,6 +170,66 @@ const publicLinks = computed(() =>
 
 const copyLink = useCopyLink();
 
+// Emails that can view the album while it is private
+const access = ref([...(album.value?.access ?? [])]);
+const newAccessEmail = ref("");
+const addingAccess = ref(false);
+
+async function addAccess() {
+  addingAccess.value = true;
+
+  await $fetch(`/api/albums/${album.value!.id}/access`, {
+    method: "POST",
+    body: { emailAddress: newAccessEmail.value },
+  })
+    .then((entry) => {
+      access.value.push(entry);
+      newAccessEmail.value = "";
+
+      toast.add({
+        title: "Access added",
+        description: entry.emailAddress,
+        icon: "material-symbols:check-circle",
+        color: "success",
+      });
+    })
+    .catch((error) => {
+      toast.add({
+        title: "Error adding access",
+        description: error.data?.statusMessage ?? "Request failed",
+        icon: "material-symbols:error",
+        color: "error",
+      });
+    })
+    .finally(() => {
+      addingAccess.value = false;
+    });
+}
+
+async function removeAccess(entry: (typeof access.value)[number]) {
+  await $fetch(`/api/albums/${album.value!.id}/access/${entry.id}`, {
+    method: "DELETE",
+  })
+    .then(() => {
+      access.value = access.value.filter((item) => item.id !== entry.id);
+
+      toast.add({
+        title: "Access removed",
+        description: entry.emailAddress,
+        icon: "material-symbols:check-circle",
+        color: "success",
+      });
+    })
+    .catch((error) => {
+      toast.add({
+        title: "Error removing access",
+        description: error.data?.statusMessage ?? "Request failed",
+        icon: "material-symbols:error",
+        color: "error",
+      });
+    });
+}
+
 onBeforeRouteLeave(() => {
   if (isDirty.value) {
     return window.confirm("You have unsaved changes to the order. Leave?");
@@ -262,7 +322,8 @@ onBeforeRouteLeave(() => {
           <h2 class="font-semibold">Links</h2>
 
           <p v-if="!album.isPublic" class="text-muted text-sm">
-            These links only work once the album is public.
+            The album is private, so these links only work for people it is
+            shared with.
           </p>
         </div>
 
@@ -286,6 +347,75 @@ onBeforeRouteLeave(() => {
         </UFormField>
       </div>
     </div>
+
+    <section class="flex max-w-2xl flex-col gap-4">
+      <div>
+        <h2 class="font-semibold">Sharing</h2>
+
+        <p class="text-muted text-sm">
+          <template v-if="album.isPublic">
+            The album is public, so anyone with a link can view it. Access below
+            applies if you make it private.
+          </template>
+
+          <template v-else>
+            People with these emails can view the album after signing in. They
+            can be added before they sign up.
+          </template>
+        </p>
+      </div>
+
+      <form class="flex items-start gap-2" @submit.prevent="addAccess">
+        <UInput
+          v-model="newAccessEmail"
+          type="email"
+          placeholder="friend@example.com"
+          aria-label="Email to share with"
+          class="flex-1"
+        />
+
+        <UButton
+          type="submit"
+          icon="i-lucide-user-plus"
+          color="neutral"
+          variant="outline"
+          :disabled="!newAccessEmail.trim()"
+          :loading="addingAccess"
+        >
+          Add
+        </UButton>
+      </form>
+
+      <ul v-if="access.length" class="divide-default divide-y">
+        <li
+          v-for="entry in access"
+          :key="entry.id"
+          class="flex items-center justify-between gap-3 py-2"
+        >
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="truncate">{{ entry.emailAddress }}</span>
+
+            <UBadge
+              :label="entry.hasAccount ? 'Has account' : 'Not signed up yet'"
+              :color="entry.hasAccount ? 'success' : 'neutral'"
+              variant="subtle"
+              size="sm"
+            />
+          </div>
+
+          <UButton
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            :aria-label="`Remove access for ${entry.emailAddress}`"
+            @click="removeAccess(entry)"
+          />
+        </li>
+      </ul>
+
+      <p v-else class="text-muted text-sm">Not shared with anyone yet.</p>
+    </section>
 
     <p v-if="!media.length" class="text-muted">
       No photos or videos yet. Add some with

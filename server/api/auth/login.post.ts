@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const session = await getUserSession(event);
 
   if ("user" in session) {
-    return sendRedirect(event, "/app/albums");
+    return { isAdmin: session.user?.isAdmin ?? false };
   }
 
   const body = await readValidatedBody(event, (b) => loginSchema.safeParse(b));
@@ -52,6 +52,8 @@ export default defineEventHandler(async (event) => {
     emailAddress: user.emailAddress,
     familyName: user.familyName,
     givenName: user.givenName,
+    // For showing admin pages in the ui. The server checks the database instead.
+    isAdmin: user.isAdmin,
   };
 
   await setUserSession(event, {
@@ -60,5 +62,6 @@ export default defineEventHandler(async (event) => {
     userSessionField: "",
   });
 
-  return sendRedirect(event, "/app/albums");
+  // The login page sends admins to album management and everyone else home
+  return { isAdmin: user.isAdmin };
 });

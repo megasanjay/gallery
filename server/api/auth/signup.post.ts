@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const session = await getUserSession(event);
 
   if ("user" in session) {
-    return sendRedirect(event, "/app/albums");
+    return sendRedirect(event, "/");
   }
 
   const body = await readValidatedBody(event, (b) => signupSchema.safeParse(b));
@@ -24,17 +24,19 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // This is a single user site. Only allow signup if no account exists yet.
-  const userCount = await prisma.user.count();
+  const normalizedEmail = body.data.emailAddress.trim().toLowerCase(); // Normalize email
 
-  if (userCount > 0) {
+  // Check if the user already exists
+  const user = await prisma.user.findUnique({
+    where: { emailAddress: normalizedEmail },
+  });
+
+  if (user) {
     throw createError({
-      statusCode: 403,
-      statusMessage: "Signups are closed",
+      statusCode: 409,
+      statusMessage: "Email address already in use",
     });
   }
-
-  const normalizedEmail = body.data.emailAddress.trim().toLowerCase(); // Normalize email
 
   // Create a new user
   const hashedPassword = await hash(body.data.password);

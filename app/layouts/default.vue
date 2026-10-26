@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from "@nuxt/ui";
 
-const { clear } = useUserSession();
+const { clear, user } = useUserSession();
 const route = useRoute();
 
 const logout = async () => {
@@ -9,13 +9,23 @@ const logout = async () => {
   await navigateTo("/login");
 };
 
-const headerItems = computed<NavigationMenuItem[]>(() => [
-  {
-    label: "Albums",
-    to: "/app/albums",
-    active: route.path.startsWith("/app/albums"),
-  },
-]);
+// Album management is admin only
+const headerItems = computed<NavigationMenuItem[]>(() =>
+  user.value?.isAdmin
+    ? [
+        {
+          label: "Albums",
+          to: "/app/albums",
+          active: route.path.startsWith("/app/albums"),
+        },
+        {
+          label: "Users",
+          to: "/app/users",
+          active: route.path.startsWith("/app/users"),
+        },
+      ]
+    : [],
+);
 </script>
 
 <template>

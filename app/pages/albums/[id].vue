@@ -1,13 +1,18 @@
 <script setup lang="ts">
 const route = useRoute();
-const { loggedIn } = useUserSession();
+const { user } = useUserSession();
 
 // Can be the album's full id, short id or custom id
 const albumId = route.params.id as string;
 
-const { data: album, error } = await useFetch(`/api/public/albums/${albumId}`);
+const { data: album, error } = await useFetch(`/api/viewer/albums/${albumId}`);
 
-if (error.value) {
+// Private album and signed out: sign in, then come back here
+if (error.value?.statusCode === 401) {
+  await navigateTo(`/login?redirect=${encodeURIComponent(route.fullPath)}`, {
+    replace: true,
+  });
+} else if (error.value) {
   throw createError({
     statusCode: error.value.statusCode ?? 500,
     statusMessage: error.value.data?.statusMessage,
@@ -75,7 +80,7 @@ const aspectRatio = (image: { width: number | null; height: number | null }) =>
         </UInput>
 
         <UButton
-          v-if="loggedIn"
+          v-if="user?.isAdmin"
           :to="`/app/albums/${album.id}`"
           icon="i-lucide-pencil"
           color="neutral"

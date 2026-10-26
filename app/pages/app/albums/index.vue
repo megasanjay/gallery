@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { FormSubmitEvent } from "#ui/types";
 
 definePageMeta({
-  middleware: ["auth"],
+  middleware: ["admin"],
 });
 
 useSeoMeta({

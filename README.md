@@ -37,7 +37,13 @@ You will need the following installed on your system:
    pnpm dev
    ```
 
-4. Open the application in your browser and create your account at `/signup`. Signup is closed once an account exists.
+4. Open the application in your browser and create your account at `/signup`, then make it the admin in the database and sign in again:
+
+   ```sql
+   UPDATE "User" SET "isAdmin" = true WHERE "emailAddress" = 'you@example.com';
+   ```
+
+   Only admins can create and manage albums. Anyone else can sign up, but can only view albums that are public or shared with them. Admins can see every account at `/app/users`.
 
 ## Adding photos and videos
 
@@ -88,7 +94,9 @@ Photos can be downloaded from the site (button or <kbd>Shift</kbd>+<kbd>D</kbd> 
 
 ### Public and private albums
 
-Albums are private by default and only visible after signing in. Public albums are listed on the home page and can be viewed by anyone at `/albums/<id>` (short and custom ids redirect there). Toggle visibility from the album page.
+Albums are private by default. Public albums are listed on the home page and can be viewed by anyone at `/albums/<id>` (short and custom ids redirect there). Toggle visibility from the album page.
+
+To share a private album, add people's emails in the Sharing section of the album page. They can view it (and see it on their home page) after signing in with that email, and can be added before they sign up. Signed out visitors to a private album are sent to the login page and back.
 
 Note that the image files themselves are served straight from the bunny.net CDN, so anyone with an image URL can load it even if its album is private. The file names are random cuids, so they can't be guessed, but enable [token authentication](https://docs.bunny.net/docs/cdn-token-authentication) on the pull zone if you need private images to be truly private.
 

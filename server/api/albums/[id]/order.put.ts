@@ -5,7 +5,7 @@ const orderSchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event);
+  await requireAdmin(event);
 
   const { id } = event.context.params as { id: string };
 

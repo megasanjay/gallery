@@ -6,6 +6,9 @@ declare module "#auth-utils" {
     givenName: string;
     familyName: string;
     emailAddress: string;
+
+    // Only used to show admin pages. The server checks the database.
+    isAdmin: boolean;
   }
 
   interface UserSession {

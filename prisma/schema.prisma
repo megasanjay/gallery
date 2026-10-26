@@ -25,6 +25,10 @@ model User {
     emailAddress String @unique
     password     String
 
+    // Admins manage albums. Everyone else can only view albums that are public
+    // or shared with their email. Set manually in the database.
+    isAdmin Boolean @default(false)
+
     created DateTime @default(now())
     updated DateTime @updatedAt
 
@@ -43,10 +47,27 @@ model Album {
 
     isPublic Boolean @default(false) // public albums can be viewed without signing in
 
-    media Media[]
+    media  Media[]
+    access AlbumAccess[]
 
     created DateTime @default(now())
     updated DateTime @updatedAt
+}
+
+// Emails that can view a private album. Matched against the signed in user's
+// email, so access can be granted before the person signs up.
+model AlbumAccess {
+    id String @id @default(cuid(2))
+
+    albumId String
+    album   Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+    emailAddress String // lowercased
+
+    created DateTime @default(now())
+
+    @@unique([albumId, emailAddress])
+    @@index([emailAddress])
 }
 
 enum MediaKind {

@@ -6,19 +6,14 @@ import { extname } from "node:path";
 export default defineEventHandler(async (event) => {
   const { id } = event.context.params as { id: string };
 
-  const media = await prisma.media.findUnique({
-    include: { album: { select: { isPublic: true } } },
-    where: { id },
+  const user = await getCurrentUser(event);
+
+  // Only photos in albums the user can view
+  const media = await prisma.media.findFirst({
+    where: { album: viewableAlbumWhere(user), id, kind: "IMAGE" },
   });
 
-  // Images in private albums can only be downloaded when signed in
-  const session = media?.album.isPublic ? null : await getUserSession(event);
-
-  if (
-    !media ||
-    media.kind !== "IMAGE" ||
-    (!media.album.isPublic && !session?.user)
-  ) {
+  if (!media) {
     throw createError({
       statusCode: 404,
       statusMessage: "Image not found",

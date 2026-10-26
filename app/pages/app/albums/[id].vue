@@ -261,15 +261,15 @@ onBeforeRouteLeave(() => {
           @update:model-value="setPublic"
         />
 
+        <!-- Admins can open private albums too, so this doubles as a preview -->
         <UButton
-          v-if="album.isPublic"
           :to="`/albums/${album.id}`"
           target="_blank"
-          icon="i-lucide-external-link"
+          :icon="album.isPublic ? 'i-lucide-external-link' : 'i-lucide-eye'"
           color="neutral"
           variant="ghost"
         >
-          View public page
+          {{ album.isPublic ? "View public page" : "Preview" }}
         </UButton>
 
         <UButton
